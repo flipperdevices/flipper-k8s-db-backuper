@@ -5,5 +5,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt update \
 
 RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 
+RUN DEBIAN_FRONTEND=noninteractive apt update
+
 ADD psql-backup.sh /backup/
 WORKDIR /backup
