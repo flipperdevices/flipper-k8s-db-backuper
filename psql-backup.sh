@@ -28,6 +28,7 @@ BACKUP_DUMP_LOCATION="$BACKUP_DUMP_BASEDIR/$BACKUP_DUMP_DIRECTORY";
 BACKUP_POSTGRESQL_FQDN="$BACKUP_POSTGRESQL_HOSTNAME.$BACKUP_POSTGRESQL_NAMESPACE.svc.cluster.local";
 
 function install_posgresql_client() {
+    DEBIAN_FRONTEND=noninteractive apt update;
     DEBIAN_FRONTEND=noninteractive apt -y install "postgresql-client-$BACKUP_POSTGRESQL_VERSION";
 }
 
