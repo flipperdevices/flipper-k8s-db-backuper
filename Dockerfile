@@ -1,6 +1,6 @@
-FROM ubuntu:latest
+FROM ubuntu:jammy
 
-RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt -y install sudo lsb-release gnupg2 wget vim bash-completion awscli curl mysql-client
+RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt -y install sudo lsb-release gnupg2 wget vim bash-completion awscli curl mysql-client python3 python3-pip
 
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 RUN echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
@@ -10,7 +10,11 @@ RUN curl -fsSL https://pgp.mongodb.com/server-6.0.asc | sudo gpg -o /usr/share/k
 
 RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt -y install mongodb-org-tools mongodb-mongosh
 
+RUN python3 -m pip install -r requirements.txt
+
 ADD psql-backup.sh /backup/
 ADD mysql-backup.sh /backup/
 ADD mongo-backup.sh /backup/
+ADD cloudflare-backup.py /backup/
+
 WORKDIR /backup
