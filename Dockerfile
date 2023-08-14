@@ -16,6 +16,6 @@ ADD mongo-backup.sh /backup/
 ADD cloudflare-backup.py /backup/
 
 ADD requirements.txt /backup/
-RUN python3 -m pip install -r requirements.txt
+RUN python3 -m pip install -r /backup/requirements.txt
 
 WORKDIR /backup
