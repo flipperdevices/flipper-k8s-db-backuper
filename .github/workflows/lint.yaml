@@ -24,7 +24,7 @@ jobs:
 
       - name: 'Install software'
         run: |
-          apt -y install shellcheck
+          sudo apt -y install shellcheck
           python3 -m pip install black
 
       - name: 'Lint shell code'
