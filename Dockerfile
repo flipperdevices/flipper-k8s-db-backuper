@@ -10,11 +10,12 @@ RUN curl -fsSL https://pgp.mongodb.com/server-6.0.asc | sudo gpg -o /usr/share/k
 
 RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt -y install mongodb-org-tools mongodb-mongosh
 
-RUN python3 -m pip install -r requirements.txt
-
 ADD psql-backup.sh /backup/
 ADD mysql-backup.sh /backup/
 ADD mongo-backup.sh /backup/
 ADD cloudflare-backup.py /backup/
+
+ADD requirements.txt /backup/
+RUN python3 -m pip install -r requirements.txt
 
 WORKDIR /backup
