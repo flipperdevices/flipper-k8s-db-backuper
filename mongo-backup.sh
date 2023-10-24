@@ -29,13 +29,13 @@ BACKUP_MONGO_FQDN="$BACKUP_MONGO_HOSTNAME.$BACKUP_MONGO_NAMESPACE.svc.cluster.lo
 
 function create_dump() {
     mkdir -p "$BACKUP_DUMP_LOCATION";
-    if [[ -n "$BACKUP_MONGO_PORT" ]]; then
+    if [[ -n "${BACKUP_MONGO_PORT:-""}" ]]; then
         mongodump \
             --host "$BACKUP_MONGO_FQDN" \
             --port "$BACKUP_MONGO_PORT" \
             --out "$BACKUP_DUMP_LOCATION" \
             2>/dev/null;
-    elif [[ -n "$BACKUP_MONGO_URI" ]]; then
+    elif [[ -n "${BACKUP_MONGO_URI:-""}" ]]; then
         mongodump \
             "$BACKUP_MONGO_URI" \
             --out "$BACKUP_DUMP_LOCATION" \
