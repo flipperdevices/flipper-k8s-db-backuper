@@ -10,7 +10,11 @@ BACKUP_SLACK_CHANNEL_FAIL=${BACKUP_SLACK_CHANNEL_FAIL:-""};
 # public required
 #BACKUP_MONGO_HOSTNAME=
 #BACKUP_MONGO_NAMESPACE=
+#---------
 #BACKUP_MONGO_PORT=
+# or
+#BACKUP_MONGO_URI=
+#---------
 #BACKUP_AWS_REGION=
 #BACKUP_AWS_BUCKET=
 #BACKUP_AWS_ACCESS_KEY=
@@ -25,11 +29,21 @@ BACKUP_MONGO_FQDN="$BACKUP_MONGO_HOSTNAME.$BACKUP_MONGO_NAMESPACE.svc.cluster.lo
 
 function create_dump() {
     mkdir -p "$BACKUP_DUMP_LOCATION";
-    mongodump \
-        --host "$BACKUP_MONGO_FQDN" \
-        --port "$BACKUP_MONGO_PORT" \
-        --out "$BACKUP_DUMP_LOCATION" \
-        2>/dev/null;
+    if [[ -n "$BACKUP_MONGO_PORT" ]]; then
+        mongodump \
+            --host "$BACKUP_MONGO_FQDN" \
+            --port "$BACKUP_MONGO_PORT" \
+            --out "$BACKUP_DUMP_LOCATION" \
+            2>/dev/null;
+    elif [[ -n "$BACKUP_MONGO_URI" ]]; then
+        mongodump \
+            "$BACKUP_MONGO_URI" \
+            --out "$BACKUP_DUMP_LOCATION" \
+            2>/dev/null;
+    else
+        echo "BACKUP_MONGO_PORT or BACKUP_MONGO_PORT required!";
+        exit 1;
+    fi
 }
 
 function upload_to_s3() {
