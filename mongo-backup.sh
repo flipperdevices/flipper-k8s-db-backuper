@@ -3,9 +3,10 @@
 set -euo pipefail; # bash unofficial strict mode
 
 # public
-BACKUP_SLACK_TOKEN=${BACKUP_SLACK_TOKEN:-""};
-BACKUP_SLACK_CHANNEL_SUCCESS=${BACKUP_SLACK_CHANNEL_SUCCESS:-""};
-BACKUP_SLACK_CHANNEL_FAIL=${BACKUP_SLACK_CHANNEL_FAIL:-""};
+BACKUP_SLACK_TOKEN="${BACKUP_SLACK_TOKEN:-""}";
+BACKUP_SLACK_CHANNEL_SUCCESS="${BACKUP_SLACK_CHANNEL_SUCCESS:-""}";
+BACKUP_SLACK_CHANNEL_FAIL="${BACKUP_SLACK_CHANNEL_FAIL:-""}";
+BACKUP_MONGO_GZIP="${BACKUP_MONGO_GZIP:-""}";
 
 # public required
 #BACKUP_MONGO_HOSTNAME=
@@ -27,19 +28,29 @@ BACKUP_DUMP_DIRECTORY="$BACKUP_MONGO_NAMESPACE/$BACKUP_MONGO_HOSTNAME/$(date +%Y
 BACKUP_DUMP_LOCATION="$BACKUP_DUMP_BASEDIR/$BACKUP_DUMP_DIRECTORY";
 BACKUP_MONGO_FQDN="$BACKUP_MONGO_HOSTNAME.$BACKUP_MONGO_NAMESPACE.svc.cluster.local";
 
+function is_gzip_enabled() {
+    GZIP_ARG_STRING="";
+    if [[ -n "${BACKUP_MONGO_GZIP:-""}" ]]; then
+        if [[ "$BACKUP_MONGO_GZIP" == "true" ]]; then
+            GZIP_ARG_STRING="--gzip";
+        fi
+    fi
+}
+
 function create_dump() {
+    is_gzip_enabled;
     mkdir -p "$BACKUP_DUMP_LOCATION";
     if [[ -n "${BACKUP_MONGO_PORT:-""}" ]]; then
         mongodump \
             --host "$BACKUP_MONGO_FQDN" \
             --port "$BACKUP_MONGO_PORT" \
             --out "$BACKUP_DUMP_LOCATION" \
-            2>/dev/null;
+            "$GZIP_ARG_STRING";
     elif [[ -n "${BACKUP_MONGO_URI:-""}" ]]; then
         mongodump \
             "$BACKUP_MONGO_URI" \
             --out "$BACKUP_DUMP_LOCATION" \
-            2>/dev/null;
+            "$GZIP_ARG_STRING";
     else
         echo "BACKUP_MONGO_PORT or BACKUP_MONGO_PORT required!";
         exit 1;
