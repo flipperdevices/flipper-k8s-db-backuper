@@ -45,12 +45,14 @@ function create_dump() {
             --host "$BACKUP_MONGO_FQDN" \
             --port "$BACKUP_MONGO_PORT" \
             --out "$BACKUP_DUMP_LOCATION" \
-            "$GZIP_ARG_STRING";
+            "$GZIP_ARG_STRING" \
+            2>/dev/null;
     elif [[ -n "${BACKUP_MONGO_URI:-""}" ]]; then
         mongodump \
             "$BACKUP_MONGO_URI" \
             --out "$BACKUP_DUMP_LOCATION" \
-            "$GZIP_ARG_STRING";
+            "$GZIP_ARG_STRING" \
+            2>/dev/null;
     else
         echo "BACKUP_MONGO_PORT or BACKUP_MONGO_PORT required!";
         exit 1;
@@ -109,7 +111,7 @@ function report_success() {
 }
 
 trap report_fail EXIT;
-BACKUP_TIME="$(TIMEFORMAT='%R';time (create_dump) 2>&1 1>/dev/null)";
-UPLOAD_TIME="$(TIMEFORMAT='%R';time (upload_to_s3) 2>&1 1>/dev/null)";
+BACKUP_TIME="$(TIMEFORMAT='%R';time (create_dump))";
+UPLOAD_TIME="$(TIMEFORMAT='%R';time (upload_to_s3))";
 trap - EXIT;
 report_success "$BACKUP_TIME" "$UPLOAD_TIME";
