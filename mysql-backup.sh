@@ -3,9 +3,7 @@
 set -euo pipefail; # bash unofficial strict mode
 
 # public
-BACKUP_SLACK_TOKEN=${BACKUP_SLACK_TOKEN:-""};
-BACKUP_SLACK_CHANNEL_SUCCESS=${BACKUP_SLACK_CHANNEL_SUCCESS:-""};
-BACKUP_SLACK_CHANNEL_FAIL=${BACKUP_SLACK_CHANNEL_FAIL:-""};
+BACKUP_PUSHGATEWAY_URL="${BACKUP_PUSHGATEWAY_URL:-""}";
 
 # public required
 #BACKUP_MYSQL_USER=
@@ -21,7 +19,6 @@ BACKUP_SLACK_CHANNEL_FAIL=${BACKUP_SLACK_CHANNEL_FAIL:-""};
 # private
 BACKUP_DUMP_BASEDIR="/backup";
 BACKUP_DUMP_NAME="mysqldump_all_databases.sql";
-BACKUP_SLACK_MESSAGE_URL="https://slack.com/api/chat.postMessage";
 BACKUP_DUMP_DIRECTORY="$BACKUP_MYSQL_NAMESPACE/$BACKUP_MYSQL_HOSTNAME/$(date +%Y-%m-%d_%H-%M_%Z)";
 BACKUP_DUMP_LOCATION="$BACKUP_DUMP_BASEDIR/$BACKUP_DUMP_DIRECTORY";
 BACKUP_MYSQL_FQDN="$BACKUP_MYSQL_HOSTNAME.$BACKUP_MYSQL_NAMESPACE.svc.cluster.local";
@@ -47,50 +44,37 @@ function upload_to_s3() {
 }
 
 function __is_reports_enabled__() {
-    if [[ -z "$BACKUP_SLACK_TOKEN" ]] || [[ -z "$BACKUP_SLACK_CHANNEL_SUCCESS" ]] || [[ -z "$BACKUP_SLACK_CHANNEL_FAIL" ]]; then
+    if [[ -z "$BACKUP_PUSHGATEWAY_URL" ]]; then
         return 1;
     else
         return 0;
     fi
 }
 
-function __report_to_slack__() {
-    local TEXT;
-    local DATA;
-    local SLACK_CHANNEL;
-    SLACK_CHANNEL="$1";
-    TEXT="$2";
-    if ! __is_reports_enabled__; then
-        echo "Slack reports disabled!";
-        echo -e "$TEXT";
-        return;
-    fi
-    DATA="{\"channel\":\"$SLACK_CHANNEL\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"$TEXT\"}}]}";
-    curl --data "$DATA" \
-        -H "Authorization: Bearer $BACKUP_SLACK_TOKEN" \
-        -H "Content-type: application/json" \
-        -X POST "$BACKUP_SLACK_MESSAGE_URL";
-}
-
-function report_fail() {
-    TEXT="Failed to backup $BACKUP_MYSQL_FQDN!";
-    __report_to_slack__ "$BACKUP_SLACK_CHANNEL_FAIL" "$TEXT";
-    exit 1;
-}
-
-function report_success() {
+function report_to_prom() {
     local BACKUP_TIME;
     local UPLOAD_TIME;
     BACKUP_TIME="$1";
     UPLOAD_TIME="$2";
-    TEXT="Success backup $BACKUP_MYSQL_FQDN!";
-    TEXT+="\nBackup time: ${BACKUP_TIME}s, upload time: ${UPLOAD_TIME}s";
-    __report_to_slack__ "$BACKUP_SLACK_CHANNEL_SUCCESS" "$TEXT";
-    exit 0;
+    if ! __is_reports_enabled__; then
+        echo "Prometheus reports are disabled!";
+        echo "Backup time $BACKUP_TIME";
+        echo "Upload time: $UPLOAD_TIME";
+        return;
+    fi
+    echo -e "# TYPE backup_time gauge\nbackup_time $BACKUP_TIME" | \
+        curl --fail-with-body \
+        --data-binary @- \
+        "$BACKUP_PUSHGATEWAY_URL/metrics/job/flipper-k8s-db-backuper/namespace/$BACKUP_MYSQL_NAMESPACE/hostname/$BACKUP_MYSQL_HOSTNAME";
+    echo -e "# TYPE upload_time gauge\nupload_time $UPLOAD_TIME" | \
+        curl --fail-with-body \
+        --data-binary @- \
+        "$BACKUP_PUSHGATEWAY_URL/metrics/job/flipper-k8s-db-backuper/namespace/$BACKUP_MYSQL_NAMESPACE/hostname/$BACKUP_MYSQL_HOSTNAME";
 }
 
-trap report_fail EXIT;
-BACKUP_TIME="$(TIMEFORMAT='%R';time (create_dump) 2>&1 1>/dev/null)";
-UPLOAD_TIME="$(TIMEFORMAT='%R';time (upload_to_s3) 2>&1 1>/dev/null)";
-trap - EXIT;
-report_success "$BACKUP_TIME" "$UPLOAD_TIME";
+{ TIMEFORMAT='%R'; time create_dump 2>&1 ; } 2> create_dump_time.txt
+{ TIMEFORMAT='%R'; time upload_to_s3 2>&1 ; } 2> upload_to_s3_time.txt
+
+BACKUP_TIME="$(cat create_dump_time.txt)";
+UPLOAD_TIME="$(cat upload_to_s3_time.txt)";
+report_to_prom "$BACKUP_TIME" "$UPLOAD_TIME";

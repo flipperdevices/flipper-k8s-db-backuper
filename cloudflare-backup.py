@@ -5,10 +5,10 @@ import sys
 import json
 import time
 import boto3
-import slack_sdk
 import CloudFlare
 from datetime import datetime
 from pathlib import Path, PurePath
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 
 class Settings:
@@ -21,31 +21,37 @@ class Settings:
         self.backup_aws_bucket = os.environ.get("BACKUP_AWS_BUCKET")
         self.backup_aws_access_key = os.environ.get("BACKUP_AWS_ACCESS_KEY")
         self.backup_aws_secret_key = os.environ.get("BACKUP_AWS_SECRET_KEY")
-        self.backup_slack_token = os.environ.get("BACKUP_SLACK_TOKEN")
-        self.backup_slack_channel_success = os.environ.get(
-            "BACKUP_SLACK_CHANNEL_SUCCESS"
-        )
-        self.backup_slack_channel_fail = os.environ.get("BACKUP_SLACK_CHANNEL_FAIL")
+        self.backup_pushgateway_url = os.environ.get("BACKUP_PUSHGATEWAY_URL")
 
 
-class SlackReport:
+class PushGatewayReport:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.success_message_template = "Success backup {fqdn}!\nBackup time: {backup_time:.3f}s, upload time: {upload_time:.3f}s"
-        self.fail_message_template = "Failed to backup {fqdn}!"
 
-    def report(self, success: bool, backup_time: float = 0.0, upload_time: float = 0.0):
-        slack_client = slack_sdk.WebClient(token=self.settings.backup_slack_token)
-        fqdn = f"{self.settings.hostname}.{self.settings.namespace}.svc.cluster.local"
-        if success:
-            slack_channel = self.settings.backup_slack_channel_success
-            message = self.success_message_template.format(
-                fqdn=fqdn, backup_time=backup_time, upload_time=upload_time
-            )
-        else:
-            slack_channel = self.settings.backup_slack_channel_fail
-            message = self.fail_message_template.format(fqdn=fqdn)
-        slack_client.chat_postMessage(channel="#" + slack_channel, text=message)
+    def __is_reports_enabled__(self) -> bool:
+        return bool(self.settings.backup_pushgateway_url)
+
+    def report(self, backup_time: float, upload_time: float) -> None:
+        if not self.__is_reports_enabled__():
+            print("Prometheus reports are disabled!")
+            print(f"Backup time: {backup_time:.3f} s")
+            print(f"Upload time: {upload_time:.3f} s")
+            return
+        registry = CollectorRegistry()
+        backup_time_gauge = Gauge("backup_time", "backup_time", registry=registry)
+        upload_time_gauge = Gauge("upload_time", "upload_time", registry=registry)
+        backup_time_gauge.set(backup_time)
+        upload_time_gauge.set(upload_time)
+        labels = {
+            "hostname": self.settings.hostname,
+            "namespace": self.settings.namespace,
+        }
+        push_to_gateway(
+            self.settings.backup_pushgateway_url,
+            job="flipper-k8s-db-backuper",
+            registry=registry,
+            grouping_key=labels,
+        )
 
 
 class Backup:
@@ -107,16 +113,10 @@ class Backup:
 
 def main():
     settings = Settings()
-    slack_report = SlackReport(settings)
+    pushgateway_report = PushGatewayReport(settings)
     backup = Backup(settings)
-    try:
-        backup_time, upload_time = backup.run()
-        slack_report.report(
-            success=True, backup_time=backup_time, upload_time=upload_time
-        )
-    except Exception as e:
-        slack_report.report(success=False)
-        raise e
+    backup_time, upload_time = backup.run()
+    pushgateway_report.report(backup_time=backup_time, upload_time=upload_time)
 
 
 if __name__ == "__main__":
