@@ -75,6 +75,8 @@ function report_to_prom() {
         "$BACKUP_PUSHGATEWAY_URL/metrics/job/flipper-k8s-db-backuper/namespace/$BACKUP_POSTGRESQL_NAMESPACE/hostname/$BACKUP_POSTGRESQL_HOSTNAME";
 }
 
+install_posgresql_client;
+
 { TIMEFORMAT='%R'; time create_dump 2>&1 ; } 2> create_dump_time.txt
 { TIMEFORMAT='%R'; time upload_to_s3 2>&1 ; } 2> upload_to_s3_time.txt
 
